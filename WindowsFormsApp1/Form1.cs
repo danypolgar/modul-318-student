@@ -8,6 +8,10 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
+using System.IO;
+using System.Net;
+using System.Net.Mail;
+
 
 namespace WindowsFormsApp1
 {
@@ -22,15 +26,23 @@ namespace WindowsFormsApp1
         SwissTransport.Transport transport = new SwissTransport.Transport();
 
 
-        private void SearchButton_Click(object sender, EventArgs e)
+        private void searchButton_Click(object sender, EventArgs e)
         {
             connectionListBox.Items.Clear();
             validateTimeInput();
             tabs.SelectedTab = connectionTab;
-            foreach (SwissTransport.Connection connection in transport.GetConnections(fromTextBox.Text, toTextBox.Text, dateTimePicker.Text, timeTextBox.Text).ConnectionList)
+            if (transport.GetConnections(fromTextBox.Text, toTextBox.Text, dateTimePicker.Text, timeTextBox.Text).ConnectionList.Count > 0 && validateTextBoxInput(fromTextBox.Text) && validateTextBoxInput(toTextBox.Text))
             {
-                connectionListBox.Items.Add(getConnectionFormat(connection));
+                foreach (SwissTransport.Connection connection in transport.GetConnections(fromTextBox.Text, toTextBox.Text, dateTimePicker.Text, timeTextBox.Text).ConnectionList)
+                {
+                    connectionListBox.Items.Add(getConnectionFormat(connection));
+                }
             }
+            else
+            {
+                showErrorMessage("Error: Suche", "Bitte geben Sie eine gültige Start- und Endstation ein.");
+            }
+
 
         }
 
@@ -40,24 +52,48 @@ namespace WindowsFormsApp1
             return string.Join("", connections);
         }
 
-        private void MapButton_Click(object sender, EventArgs e)
+        private void mapButton_Click(object sender, EventArgs e)
         {
-            tabs.SelectedTab = mapTab;
+            SwissTransport.Stations station = transport.GetStations(stationTextBox.Text);
+            if (station.StationList.Count > 0 && !getCoordinates(station.StationList[0]).Equals("0, 0"))
+            {
+                System.Diagnostics.Process.Start("https://www.google.com/maps/search/?api=1&query=" + getCoordinates(station.StationList[0]));
+            }
+            else
+            {
+                showErrorMessage("Error: Karte", "Bitte geben Sie eine gültige Station ein.");
+            }
+
         }
 
-        private void TimetableButton_Click(object sender, EventArgs e)
+        private string getCoordinates(SwissTransport.Station station)
         {
+            string[] coordinates = { station.Coordinate.XCoordinate.ToString().Replace(",", "."), ", ", station.Coordinate.YCoordinate.ToString().Replace(",", ".") };
+            return string.Join("", coordinates);
+        }
+
+        private void timetableButton_Click(object sender, EventArgs e)
+        {
+            
             timetableListBox.Items.Clear();
             tabs.SelectedTab = timetableTab;
-            foreach (SwissTransport.StationBoard stationBoard in transport.GetStationBoard(stationTextBox.Text).Entries)
+            if (transport.GetStationBoard(stationTextBox.Text).Entries.Count > 0 && validateTextBoxInput(stationTextBox.Text))
             {
-                timetableListBox.Items.Add(getTimetableFormat(stationBoard));
+                foreach (SwissTransport.StationBoard stationBoard in transport.GetStationBoard(stationTextBox.Text).Entries)
+                {
+                    timetableListBox.Items.Add(getTimetableFormat(stationBoard));
+                }
             }
+            else
+            {
+                showErrorMessage("Error: Abfahrtstafel", "Bitte geben Sie eine gültige Station ein.");
+            }
+
         }
 
         private string getTimetableFormat(SwissTransport.StationBoard stationBoard)
         {
-            string[] timetable = { stationBoard.Stop.Departure.ToString().Substring(0, 10), " |  ", stationBoard.Stop.Departure.ToString().Substring(11, 5), "   ", stationTextBox.Text, " -->  ", stationBoard.To };
+            string[] timetable = { stationBoard.Stop.Departure.ToString().Substring(0, 10), " |  ", stationBoard.Stop.Departure.ToString().Substring(11, 5), "   ", " -->  ", stationBoard.To };
             return string.Join("", timetable);
         }
 
@@ -65,29 +101,79 @@ namespace WindowsFormsApp1
         {
             if (!Regex.IsMatch(timeTextBox.Text, "^([0-1][0-9]|[2][0-3]):([0-5][0-9])$"))
             {
-                showErrorMessage();
+                showErrorMessage("Error: Zeit", "ungültige Eingabe, richtig: HH:mm");
             }
 
         }
 
-        public void showErrorMessage()
+        public void showErrorMessage(string title, string message)
         {
-            MessageBox.Show("ungültige Eingabe, richtig: HH:MM", "Error",
+            MessageBox.Show(message, title,
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
 
-        private void StationButton_Click(object sender, EventArgs e)
+        private void stationButton_Click(object sender, EventArgs e)
         {
             stationListBox.Items.Clear();
             tabs.SelectedTab = stationTab;
-
-            foreach (SwissTransport.Station station in transport.GetStations(stationTextBox.Text).StationList)
+            if (transport.GetStations(stationTextBox.Text).StationList.Count > 0 && validateTextBoxInput(stationTextBox.Text))
             {
-                stationListBox.Items.Add(station.Name);
+                foreach (SwissTransport.Station station in transport.GetStations(stationTextBox.Text).StationList)
+                {
+                    stationListBox.Items.Add(station.Name);
+                }
             }
+            else
+            {
+                showErrorMessage("Error: Station", "Bitte geben Sie eine gültige Station ein.");
+            }
+
 
         }
 
+        private void sendButton_Click(object sender, EventArgs e)
+        {
+
+            if (connectionListBox.Items.Count > 0 && validateEmailTextBoxInput(targetMailTextBox.Text))
+            {
+                string mailContent = "";
+                for (int i = 0; i < connectionListBox.Items.Count; i++)
+                {
+                    mailContent += connectionListBox.Items[i].ToString() + "\n";
+                }
+                System.Diagnostics.Process.Start("mailto:" + targetMailTextBox.Text + "?subject=Fahrplan&body=" + mailContent);
+            }
+        }
+
+        private void validateSearchTextBoxInput(string input)
+        {
+            if (!Regex.IsMatch(input, "^.+$"))
+            {
+                showErrorMessage("Error: von/bis", "Bitte geben Sie ein Start und Ziel Station ein.");
+            }
+        }
+
+        private bool validateTextBoxInput(string input)
+        {
+            if (!Regex.IsMatch(input, "^.+$"))
+            {
+                return false;
+            }
+            return true;
+        }
+        private bool validateEmailTextBoxInput(string input)
+        {
+            if (!Regex.IsMatch(input, "^([a-zA-Z0-9_\\-\\.]+)@([a-zA-Z0-9_\\-\\.]+)\\.([a-zA-Z]{2,5})$"))
+            {
+                showErrorMessage("Error: Email", "Bitte geben Sie einen gültigen Email ein.");
+                return false;
+            }
+            else
+            {
+                return true;
+            }
+
+        }
 
     }
 }
