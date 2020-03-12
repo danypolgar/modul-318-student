@@ -92,7 +92,7 @@ namespace WindowsFormsApp1
             {
                 foreach (SwissTransport.Station station in transport.GetStations(stationTextBox.Text).StationList)
                 {
-                    stationListBox.Items.Add(station.Name);
+                    stationListBox.Items.Add(utils.getStationFormat(station));
                 }
             }
             else
@@ -128,7 +128,7 @@ namespace WindowsFormsApp1
         }
 
         //zusätzliche Methoden
-        public void checkInternetConnection()
+        private void checkInternetConnection()
         {
             try
             {

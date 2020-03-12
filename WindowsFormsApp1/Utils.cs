@@ -26,6 +26,12 @@ namespace WindowsFormsApp1
             return string.Join("", timetable);
         }
 
+        public string getStationFormat(SwissTransport.Station station)
+        {
+            string[] stationResult = { station.Name };
+            return string.Join("", stationResult);
+        }
+
 
         //Validierungen
         public void validateTimeInput(string input)
